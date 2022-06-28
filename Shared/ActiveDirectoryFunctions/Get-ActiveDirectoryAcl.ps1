@@ -5,12 +5,22 @@ function Get-ActiveDirectoryAcl {
     [CmdletBinding()]
     [OutputType([System.DirectoryServices.ActiveDirectorySecurity])]
     param (
-        [Parameter()]
+        [Parameter(Mandatory = $true)]
         [string]
-        $DistinguishedName
+        $DistinguishedName,
+
+        [Parameter(Mandatory = $false)]
+        [string]
+        $DomainController
     )
 
-    $adEntry = [ADSI]("LDAP://$($DistinguishedName)")
+    $dc = ""
+    if (-not [string]::IsNullOrEmpty($DomainController)) {
+        $dc = $DomainController + "/"
+    }
+
+    $path = "LDAP://$($dc)$($DistinguishedName)"
+    $adEntry = [ADSI]($path)
     $sdFinder = New-Object System.DirectoryServices.DirectorySearcher($adEntry, "(objectClass=*)", [string[]]("distinguishedName", "ntSecurityDescriptor"), [System.DirectoryServices.SearchScope]::Base)
     $sdResult = $sdFinder.FindOne()
     $ntsdProp = $sdResult.Properties["ntSecurityDescriptor"][0]
