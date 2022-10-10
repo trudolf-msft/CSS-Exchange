@@ -14,7 +14,11 @@ param (
 
     [Parameter(Mandatory = $false, Position = 3)]
     [switch]
-    $SaveReport
+    $SaveReport,
+
+    [Parameter(Mandatory = $false, Position = 3)]
+    [switch]
+    $OutputDebugInfo
 )
 
 begin {
@@ -94,12 +98,13 @@ process {
             }
         }
 
+        $ace | Add-Member -MemberType NoteProperty -Name "Index" -Value $i
         $displayAces += $ace
     }
 
     $report.ACL = $displayAces
     Write-Host "ACL: $TargetObjectDN"
-    $displayAces | Where-Object { $_.PropagationFlags -ne "InheritOnly" } | Out-Columns -Properties IdentityReference, AccessControlType, ActiveDirectoryRights, ObjectTypeDisplay, IsInherited
+    $displayAces | Where-Object { $_.PropagationFlags -ne "InheritOnly" } | Out-Columns -Properties Index, IdentityReference, AccessControlType, ActiveDirectoryRights, ObjectTypeDisplay, IsInherited
 
     $propertySetInfo = Get-PropertySetInfo
     $attributeCount = $propertySetInfo.MemberAttributes.Count
@@ -107,6 +112,7 @@ process {
     $sw = New-Object System.Diagnostics.Stopwatch
     $sw.Start()
     $schemaPath = ([ADSI]("LDAP://RootDSE")).Properties["schemaNamingContext"][0]
+    $identityReferenceCache = @{}
     foreach ($propertySet in $propertySetInfo) {
         foreach ($attributeName in $propertySet.MemberAttributes) {
             $progressCount++
@@ -131,26 +137,49 @@ process {
             #   - The schemaIdGuid from the attributeSchemaEntry
             # We must hit the allow before we hit a deny on the same thing.
 
+            $found = $false
+            $problemAceIndex = $null
             for ($i = 0; $i -lt $displayAces.Count; $i++) {
                 $ace = $displayAces[$i]
                 if ($ace.PropagationFlags -eq "InheritOnly") {
                     continue
                 }
 
-                $matchingSid = $token | Where-Object { $_.SID -eq $ace.IdentityReference.SID }
+                $sidToFind = $null
+                if ($null -eq $ace.IdentityReference.SID) {
+                    if ($null -ne $identityReferenceCache[$ace.IdentityReference.Value]) {
+                        $sidToFind = $identityReferenceCache[$ace.IdentityReference.Value]
+                    } else {
+                        $sidToFind = $ace.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
+                        $identityReferenceCache[$ace.IdentityReference.Value] = $sidToFind
+                    }
+                } else {
+                    $sidToFind = $ace.IdentityReference.SID
+                }
+
+                $matchingSid = $token | Where-Object { $_.SID -eq $sidToFind.ToString() }
                 if ($null -ne $matchingSid) {
                     # The ACE affects this token.
                     # Does it affect this property?
                     if ($ace.ObjectType -eq $propertySet.RightsGuid -or $ace.ObjectType -eq $schemaIdGuid -or $ace.ObjectType -eq [Guid]::Empty) {
                         if ($ace.ActiveDirectoryRights -contains "WriteProperty" -or $ace.ActiveDirectoryRights -contains "GenericAll") {
                             if ($ace.AccessControlType -eq "Allow") {
-                                continue
+                                $found = $true
+                                break
                             } else {
-                                $report.ProblemsFound += "The property $attributeName is denied Write by ACE $i."
-                                continue
+                                $problemAceIndex = $i
+                                break
                             }
                         }
                     }
+                }
+            }
+
+            if (-not $found) {
+                if ($null -ne $problemAceIndex) {
+                    $report.ProblemsFound += "The property $attributeName is denied Write by ACE $problemAceIndex."
+                } else {
+                    $report.ProblemsFound += "The property $attributeName is not allowed Write by any ACE."
                 }
             }
         }
@@ -168,5 +197,20 @@ process {
         $reportPath = $PSScriptRoot + "\" + "PermissionReport-$([DateTime]::Now.ToString("yyMMddHHmmss")).xml"
         $report | Export-Clixml $reportPath
         Write-Host "Report saved to $reportPath"
+    }
+
+    if ($OutputDebugInfo) {
+        $debugInfo = @{
+            ACL = $acl
+            DisplayAces = $displayAces
+            IdentityReferenceCache = $identityReferenceCache
+            Token = $token
+            TargetObjectDN = $TargetObjectDN
+            Report = $report
+        }
+
+        $debugInfoPath = Join-Path $PSScriptRoot "DebugInfo.xml"
+        $debugInfo | Export-Clixml -Path $debugInfoPath
+        Write-Host "Debug info saved to $debugInfoPath"
     }
 }
