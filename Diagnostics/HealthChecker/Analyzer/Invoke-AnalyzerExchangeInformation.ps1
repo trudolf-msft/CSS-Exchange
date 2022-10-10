@@ -163,6 +163,27 @@ function Invoke-AnalyzerExchangeInformation {
     }
     Add-AnalyzedResultInformation @params
 
+    if (($exchangeInformation.BuildInformation.ServerRole -ne [HealthChecker.ExchangeServerRole]::Edge) -and
+        ($exchangeInformation.BuildInformation.ServerRole -ne [HealthChecker.ExchangeServerRole]::Hub) -and
+        ($exchangeInformation.BuildInformation.ServerRole -ne [HealthChecker.ExchangeServerRole]::None)) {
+
+        Write-Verbose "Working on MRS Proxy Settings"
+        $mrsProxyDetails = $exchangeInformation.GetWebServicesVirtualDirectory.MRSProxyEnabled
+        if ($exchangeInformation.GetWebServicesVirtualDirectory.MRSProxyEnabled) {
+            $mrsProxyDetails = "$mrsProxyDetails`n`r`t`tKeep MRS Proxy disabled if you do not plan to move mailboxes cross-forest or remote"
+            $mrsProxyWriteType = "Yellow"
+        } else {
+            $mrsProxyWriteType = "Grey"
+        }
+
+        $params = $baseParams + @{
+            Name             = "MRS Proxy Enabled"
+            Details          = $mrsProxyDetails
+            DisplayWriteType = $mrsProxyWriteType
+        }
+        Add-AnalyzedResultInformation @params
+    }
+
     if ($exchangeInformation.BuildInformation.MajorVersion -eq [HealthChecker.ExchangeMajorVersion]::Exchange2013 -and
         $exchangeInformation.BuildInformation.ServerRole -ne [HealthChecker.ExchangeServerRole]::Edge -and
         $exchangeInformation.BuildInformation.ServerRole -ne [HealthChecker.ExchangeServerRole]::Mailbox) {
@@ -275,6 +296,36 @@ function Invoke-AnalyzerExchangeInformation {
                 }
                 Add-AnalyzedResultInformation @params
             }
+        }
+    }
+
+    if ($exchangeInformation.BuildInformation.ServerRole -ne [HealthChecker.ExchangeServerRole]::Edge -and
+        $null -ne $exchangeInformation.ExtendedProtectionConfig) {
+        $params = $baseParams + @{
+            Name    = "Extended Protection Enabled (Any Vdir)"
+            Details = $exchangeInformation.ExtendedProtectionConfig.ExtendedProtectionConfigured
+        }
+        Add-AnalyzedResultInformation @params
+    }
+
+    if ($null -ne $exchangeInformation.SettingOverrides) {
+
+        $overridesDetected = $null -ne $exchangeInformation.SettingOverrides.SettingOverrides
+        $params = $baseParams + @{
+            Name    = "Setting Overrides Detected"
+            Details = $overridesDetected
+        }
+        Add-AnalyzedResultInformation @params
+
+        if ($overridesDetected) {
+            $params = $baseParams + @{
+                OutColumns = ([PSCustomObject]@{
+                        DisplayObject = $exchangeInformation.SettingOverrides.SimpleSettingOverrides
+                        IndentSpaces  = 12
+                    })
+                HtmlName   = "Setting Overrides"
+            }
+            Add-AnalyzedResultInformation @params
         }
     }
 

@@ -1,18 +1,20 @@
 ﻿# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
+. $PSScriptRoot\..\..\..\..\Security\src\ExchangeExtendedProtectionManagement\DataCollection\Get-ExtendedProtectionConfiguration.ps1
 . $PSScriptRoot\..\..\..\..\Shared\ErrorMonitorFunctions.ps1
 . $PSScriptRoot\..\..\..\..\Shared\Get-ExchangeBuildVersionInformation.ps1
+. $PSScriptRoot\..\..\..\..\Shared\Get-ExchangeSettingOverride.ps1
 . $PSScriptRoot\..\..\..\..\Shared\Invoke-ScriptBlockHandler.ps1
+. $PSScriptRoot\IISInformation\Get-ExchangeAppPoolsInformation.ps1
+. $PSScriptRoot\IISInformation\Get-ExchangeServerIISSettings.ps1
 . $PSScriptRoot\Get-ExchangeAdPermissions.ps1
 . $PSScriptRoot\Get-ExchangeAdSchemaClass.ps1
 . $PSScriptRoot\Get-ExchangeAMSIConfigurationState.ps1
 . $PSScriptRoot\Get-ExchangeApplicationConfigurationFileValidation.ps1
-. $PSScriptRoot\Get-ExchangeAppPoolsInformation.ps1
 . $PSScriptRoot\Get-ExchangeConnectors.ps1
 . $PSScriptRoot\Get-ExchangeDependentServices.ps1
 . $PSScriptRoot\Get-ExchangeEmergencyMitigationServiceState.ps1
-. $PSScriptRoot\Get-ExchangeIISConfigSettings.ps1
 . $PSScriptRoot\Get-ExchangeRegistryValues.ps1
 . $PSScriptRoot\Get-ExchangeServerCertificates.ps1
 . $PSScriptRoot\Get-ExchangeServerMaintenanceState.ps1
@@ -476,12 +478,27 @@ function Get-ExchangeInformation {
                 -ComputerName $Script:Server `
                 -CertificateObject $exchangeInformation.ExchangeCertificates
 
-            $exchangeInformation.IISConfigurationSettings = Get-ExchangeIISConfigSettings -MachineName $Script:Server `
-                -ExchangeInstallPath $serverExchangeInstallDirectory `
-                -CatchActionFunction ${Function:Invoke-CatchActions}
+            $exchangeServerIISParams = @{
+                ComputerName        = $Script:Server
+                ExchangeInstallPath = $serverExchangeInstallDirectory
+                IsLegacyOS          = ($OSMajorVersion -lt [HealthChecker.OSServerVersion]::Windows2016)
+                CatchActionFunction = ${Function:Invoke-CatchActions}
+            }
+
+            Write-Verbose "Trying to query Exchange Server IIS settings"
+            $exchangeInformation.IISSettings = Get-ExchangeServerIISSettings @exchangeServerIISParams
 
             Write-Verbose "Query Exchange AD permissions for CVE-2022-21978 testing"
             $exchangeInformation.ExchangeAdPermissions = Get-ExchangeAdPermissions -ExchangeVersion $buildInformation.MajorVersion -OSVersion $OSMajorVersion
+
+            Write-Verbose "Query extended protection configuration for multiple CVEs testing"
+            $getExtendedProtectionConfigurationParams = @{
+                ComputerName        = $Script:Server
+                ExSetupVersion      = $buildInformation.ExchangeSetup.FileVersion
+                CatchActionFunction = ${Function:Invoke-CatchActions}
+            }
+
+            $exchangeInformation.ExtendedProtectionConfig = Get-ExtendedProtectionConfiguration @getExtendedProtectionConfigurationParams
         }
 
         $exchangeInformation.ApplicationConfigFileStatus = Get-ExchangeApplicationConfigurationFileValidation -ConfigFileLocation ("{0}EdgeTransport.exe.config" -f $serverExchangeBinDirectory)
@@ -503,18 +520,18 @@ function Get-ExchangeInformation {
             Invoke-CatchActions
         }
 
-        if (($buildInformation.ServerRole -ne [HealthChecker.ExchangeServerRole]::Edge) -and
-            ($buildInformation.ServerRole -ne [HealthChecker.ExchangeServerRole]::None) -and
-            ($buildInformation.ServerRole -ne [HealthChecker.ExchangeServerRole]::ClientAccess)) {
-            Write-Verbose "Checking if FIP-FS is affected by the pattern issue"
-            $buildInformation.AffectedByFIPFSUpdateIssue = Get-FIPFSScanEngineVersionState -ComputerName $Script:Server
-        } else {
-            Write-Verbose "This Exchange server role is not affected by the pattern issue - skipping check"
-            $buildInformation.AffectedByFIPFSUpdateIssue = $false
+        Write-Verbose "Checking if FIP-FS is affected by the pattern issue"
+        $fipfsParams = @{
+            ComputerName   = $Script:Server
+            ExSetupVersion = $buildInformation.ExchangeSetup.FileVersion
+            ServerRole     = $buildInformation.ServerRole
         }
+
+        $buildInformation.FIPFSUpdateIssue = Get-FIPFSScanEngineVersionState @fipfsParams
 
         $exchangeInformation.RegistryValues = Get-ExchangeRegistryValues -MachineName $Script:Server -CatchActionFunction ${Function:Invoke-CatchActions}
         $exchangeInformation.ServerMaintenance = Get-ExchangeServerMaintenanceState -ComponentsToSkip "ForwardSyncDaemon", "ProvisioningRps"
+        $exchangeInformation.SettingOverrides = Get-ExchangeSettingOverride -Server $Script:Server -CatchActionFunction ${Function:Invoke-CatchActions}
 
         if (($buildInformation.ServerRole -ne [HealthChecker.ExchangeServerRole]::ClientAccess) -and
             ($buildInformation.ServerRole -ne [HealthChecker.ExchangeServerRole]::None)) {

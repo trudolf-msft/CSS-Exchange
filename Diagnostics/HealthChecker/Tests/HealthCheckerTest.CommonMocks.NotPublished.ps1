@@ -30,6 +30,7 @@ Mock Invoke-ScriptBlockHandler -ParameterFilter { $ScriptBlockDescription -eq "T
 Mock Invoke-ScriptBlockHandler -ParameterFilter { $ScriptBlockDescription -eq "Getting Current Time Zone" } -MockWith { return "Pacific Standard Time" }
 Mock Invoke-ScriptBlockHandler -ParameterFilter { $ScriptBlockDescription -eq "Test EEMS pattern service connectivity" } -MockWith { return Import-Clixml "$Script:MockDataCollectionRoot\Exchange\WebRequest_getexchangemitigations.xml" }
 Mock Invoke-ScriptBlockHandler -ParameterFilter { $ScriptBlockDescription -eq "Getting Exchange Install Directory" } -MockWith { return "hi" }
+Mock Invoke-ScriptBlockHandler -ParameterFilter { $ScriptBlockDescription -eq "Getting applicationHost.config" } -MockWith { return Import-Clixml "$Script:MockDataCollectionRoot\Exchange\GetApplicationHostConfig.xml" }
 
 
 Mock Get-RemoteRegistryValue {
@@ -136,16 +137,28 @@ Mock Get-ExchangeAdPermissions {
     return $null
 }
 
+Mock Get-ExtendedProtectionConfiguration {
+    return Import-Clixml "$Script:MockDataCollectionRoot\Exchange\GetExtendedProtectionConfiguration.xml"
+}
+
 Mock Get-HttpProxySetting {
     return Import-Clixml "$Script:MockDataCollectionRoot\OS\GetHttpProxySetting.xml"
 }
 
 Mock Get-FIPFSScanEngineVersionState {
-    return $true
+    return Import-Clixml "$Script:MockDataCollectionRoot\Exchange\GetFIPFSScanEngineVersionState.xml"
 }
 
 Mock Get-ExchangeIISConfigSettings {
     return Import-Clixml "$Script:MockDataCollectionRoot\Exchange\GetExchangeIISConfigSettings.xml"
+}
+
+Mock Get-IISModules {
+    return Import-Clixml "$Script:MockDataCollectionRoot\Exchange\GetIISModules.xml"
+}
+
+Mock Get-ExchangeSettingOverride {
+    return Import-Clixml "$Script:MockDataCollectionRoot\Exchange\GetExchangeSettingOverride.xml"
 }
 
 # Do nothing

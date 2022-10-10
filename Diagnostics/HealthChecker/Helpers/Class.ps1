@@ -26,6 +26,7 @@ using System.Collections;
             public object GetWebServicesVirtualDirectory; //stores the Get-WebServicesVirtualDirectory object
             public object GetOrganizationConfig; //Stores the result from Get-OrganizationConfig
             public object ExchangeAdPermissions; //Stores the Exchange AD permissions for vulnerability testing
+            public object ExtendedProtectionConfig; //Stores the extended protection configuration
             public object msExchStorageGroup;   //Stores the properties of the 'ms-Exch-Storage-Group' Schema class
             public object GetHybridConfiguration; //Stores the Get-HybridConfiguration Object
             public object ExchangeConnectors; //Stores the Get-ExchangeConnectors Object
@@ -42,7 +43,8 @@ using System.Collections;
             public object ExchangeEmergencyMitigationService;   //stores the Exchange Emergency Mitigation Service (EEMS) object
             public Hashtable ApplicationConfigFileStatus = new Hashtable();
             public object DependentServices; // store the results for the dependent services of Exchange.
-            public object IISConfigurationSettings; // store the results for the IIS Settings test
+            public object IISSettings;  //Stores the IISConfigurationSettings, applicationHostConfig and IISModulesInformation
+            public object SettingOverrides; //Stores the information regarding the Exchange Setting Overrides on the server.
         }
 
         public class ExchangeBuildInformation
@@ -59,7 +61,7 @@ using System.Collections;
             public object ExchangeSetup;    //Stores the Get-Command ExSetup object
             public System.Array KBsInstalled;  //Stored object IU or Security KB fixes
             public bool March2021SUInstalled;    //True if March 2021 SU is installed
-            public object AffectedByFIPFSUpdateIssue; //True if FIP-FS Update issue is detected
+            public object FIPFSUpdateIssue; //Stores FIP-FS update issue information
         }
 
         public class ExchangeNetFrameworkInformation
@@ -210,6 +212,7 @@ using System.Collections;
             public bool ComponentBasedServicingPendingReboot;   // bool HKLM:\Software\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending
             public bool AutoUpdatePendingReboot;                // bool HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired
             public bool PendingReboot;                         // bool if reboot types are set to true
+            public bool UpdateExeVolatile;                      // bool HKLM:\Software\Microsoft\Updates\UpdateExeVolatile\Flags
         }
 
         public class InstalledUpdatesInformation

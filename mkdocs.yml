@@ -67,6 +67,9 @@ nav:
     - Troubleshoot-ModernSearch: Search/Troubleshoot-ModernSearch.md
   - Security:
     - EOMT: Security/EOMT.md
+    - EOMTv2: Security/EOMTv2.md
+    - Extended Protection: Security/Extended-Protection.md
+    - ExchangeExtendedProtectionManagement: Security/ExchangeExtendedProtectionManagement.md
     - ExchangeMitigations: Security/ExchangeMitigations.md
     - Test-CVE-2021-34470: Security/Test-CVE-2021-34470.md
     - Test-ProxyLogon: Security/Test-ProxyLogon.md
@@ -85,7 +88,14 @@ theme:
     - navigation.indexes
 markdown_extensions:
   - pymdownx.highlight
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 repo_url: https://github.com/microsoft/CSS-Exchange
 edit_uri: edit/main/docs/
 site_url: https://microsoft.github.io/CSS-Exchange
+plugins:
+  - search
+  - git-revision-date-localized
