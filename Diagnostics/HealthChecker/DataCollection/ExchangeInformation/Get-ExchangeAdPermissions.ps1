@@ -112,28 +112,32 @@ function Get-ExchangeAdPermissions {
             Write-Verbose "DomainDN: $domainDN"
 
             try {
-                try {
-                    # Check if AD split permissions is enabled and if so, throw to check for objectVersion instead ACE
-                    if (Get-ExchangeADSplitPermissionsEnabled) {
-                        throw "Active Directory split permissions enabled. Fallback to 'objectVersion (Default)' validation initiated."
-                    }
+                $useObjectVersionValidation = $false
 
-                    # Where() method became available with PowerShell 4.0 (default PS on Server 2012 R2),
-                    # throw to initiate objectVersion (Default) testing, as we can't use Where() to check ACE below
-                    if ($OSVersion -le [HealthChecker.OSServerVersion]::Windows2012) {
-                        throw "Legacy server OS detected, fallback to 'objectVersion (Default)' validation initiated."
-                    }
-                    $domainAcl = Get-ActiveDirectoryAcl $domainDN.ToString()
-                    $adminSdHolderAcl = Get-ActiveDirectoryAcl $adminSdHolderDN
+                # Check if AD split permissions is enabled and if so, throw to check for objectVersion instead ACE
+                if (Get-ExchangeADSplitPermissionsEnabled) {
+                    $useObjectVersionValidation = $true
+                    Write-Verbose "Active Directory split permissions enabled. Fallback to 'objectVersion (Default)' validation initiated."
+                }
 
-                    if ($null -eq $domainAcl -or
-                        $null -eq $domainAcl.Access -or
-                        $null -eq $adminSdHolderAcl -or
-                        $null -eq $adminSdHolderAcl.Access) {
-                        throw "Failed to get required ACL information. Fallback to 'objectVersion (Default)' validation initiated."
-                    }
-                } catch {
-                    Invoke-CatchActions
+                # Where() method became available with PowerShell 4.0 (default PS on Server 2012 R2),
+                # throw to initiate objectVersion (Default) testing, as we can't use Where() to check ACE below
+                if ($OSVersion -le [HealthChecker.OSServerVersion]::Windows2012) {
+                    $useObjectVersionValidation = $true
+                    Write-Verbose "Legacy server OS detected, fallback to 'objectVersion (Default)' validation initiated."
+                }
+                $domainAcl = Get-ActiveDirectoryAcl $domainDN.ToString()
+                $adminSdHolderAcl = Get-ActiveDirectoryAcl $adminSdHolderDN
+
+                if ($null -eq $domainAcl -or
+                    $null -eq $domainAcl.Access -or
+                    $null -eq $adminSdHolderAcl -or
+                    $null -eq $adminSdHolderAcl.Access) {
+                    $useObjectVersionValidation = $true
+                    Write-Verbose "Failed to get required ACL information. Fallback to 'objectVersion (Default)' validation initiated."
+                }
+
+                if ($useObjectVersionValidation) {
                     $objectVersionTestingValue = 13243
                     if ($ExchangeVersion -eq [HealthChecker.ExchangeMajorVersion]::Exchange2013) {
                         $objectVersionTestingValue = 13238
