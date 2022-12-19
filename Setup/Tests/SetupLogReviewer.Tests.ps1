@@ -138,6 +138,14 @@ Describe "Testing SetupLogReviewer" {
             Test-GeneralAdditionalContext
         }
 
+        It "Domain Prep Required" {
+            & $sr -SetupLog "$PSScriptRoot\PrerequisiteCheck\ExchangeSetup_DomainPrepRequired.log"
+            Assert-MockCalled -Exactly 1 -CommandName Write-Host `
+                -ParameterFilter { $Object -eq "Local Domain Is Not Prepped or might have duplicate MESO Containers" -and $ForegroundColor -eq "Red" }
+            Assert-MockCalled -Exactly 1 -CommandName Write-Host `
+                -ParameterFilter { $Object -like "*Run SetupAssist on the server to determine the problem and correct action plan." }
+        }
+
         It "DC Out of Site - 1" {
             & $sr -SetupLog "$PSScriptRoot\PrerequisiteCheck\DCOutOfSite\ExchangeSetup_DC_Site_1.log"
             Assert-MockCalled -Exactly 1 -CommandName Write-Host `
@@ -318,6 +326,24 @@ Describe "Testing SetupLogReviewer" {
                 -ParameterFilter { $Object -like "*This is a known issue, however, we are still investigating as to why this issue is occurring in some environments. Please email 'ExToolsFeedback@microsoft.com' ASAP to investigate this issue." }
             Assert-MockCalled -Exactly 1 -CommandName Write-Host `
                 -ParameterFilter { $Object -like "*Do NOT remove the arbitration mailboxes/accounts as they may contain critical information for your environment." }
+        }
+
+        It "ServiceControl Reverse Error" {
+            & $sr -SetupLog "$PSScriptRoot\KnownIssues\ExchangeSetup_ServiceControl_Reverse.log"
+            Assert-MockCalled -Exactly 1 -CommandName Write-Host `
+                -ParameterFilter { $Object -like "*System.Management.Automation.MethodInvocationException*" }
+            Assert-MockCalled -Exactly 1 -CommandName Write-Host `
+                -ParameterFilter { $Object -like "*1. Find the ServiceControl.ps1 in the Exchange Bin Directory" }
+            Assert-MockCalled -Exactly 1 -CommandName Write-Host `
+                -ParameterFilter { $Object -like "*2. Find the following line in the script, within the StopServices function:" }
+            Assert-MockCalled -Exactly 1 -CommandName Write-Host `
+                -ParameterFilter { $Object -like "*`$services = Get-ServiceToControl `$Roles -Active" }
+            Assert-MockCalled -Exactly 1 -CommandName Write-Host `
+                -ParameterFilter { $Object -like "*3. Add in the following:" }
+            Assert-MockCalled -Exactly 1 -CommandName Write-Host `
+                -ParameterFilter { $Object -like "*if (`$services -eq `$null) { return `$true }" }
+            Assert-MockCalled -Exactly 1 -CommandName Write-Host `
+                -ParameterFilter { $Object -like "*4. Save the file and try to run Setup again." }
         }
     }
 

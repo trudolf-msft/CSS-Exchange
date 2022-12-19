@@ -79,7 +79,10 @@ param(
 
     [Parameter (Mandatory = $true, ParameterSetName = 'Rollback', HelpMessage = "Using this parameter will allow you to rollback using the type you specified.")]
     [ValidateSet('RestrictTypeEWSBackend', 'RestoreIISAppConfig')]
-    [string[]]$RollbackType
+    [string[]]$RollbackType,
+
+    [Parameter (Mandatory = $false, HelpMessage = "Using this switch will prevent the script from checking for an updated version.")]
+    [switch]$SkipAutoUpdate
 )
 
 begin {
@@ -205,7 +208,7 @@ begin {
     }
 
     try {
-        $exchangeShell = Confirm-ExchangeShell -Identity $env:COMPUTERNAME
+        $exchangeShell = Confirm-ExchangeShell
         if (-not($exchangeShell.ShellLoaded)) {
             Write-Warning "Failed to load the Exchange Management Shell. Start the script using the Exchange Management Shell."
             exit
@@ -217,14 +220,18 @@ begin {
         $BuildVersion = ""
         Write-Host "Version $BuildVersion"
 
-        if ((Test-ScriptVersion -AutoUpdate -VersionsUrl "https://aka.ms/CEP-VersionsUrl")) {
+        if ($SkipAutoUpdate) {
+            Write-Verbose "Skipping AutoUpdate"
+        } elseif ((Test-ScriptVersion -AutoUpdate -VersionsUrl "https://aka.ms/CEP-VersionsUrl")) {
             Write-Warning "Script was updated. Please rerun the command."
             exit
+        } else {
+            Write-Verbose "Script is up to date."
         }
 
         if ($ConfigureEPSelected) {
 
-            $ArchivingKnownIssueString = "`r`n    - Automated Archiving using Archive policy"
+            $ArchivingKnownIssueString = "`r`n    - Automated Archiving using Archive policy."
             if ($ConfigureMitigationSelected) {
                 $ArchivingKnownIssueString = ""
             }
@@ -278,7 +285,7 @@ begin {
 
         if ($ValidateTypeSelected) {
             # Validate mitigation
-            $ExchangeServers = $ExchangeServers | Where-Object { -not ((Get-ExchangeBuildVersionInformation -AdminDisplayVersion $_.AdminDisplayVersion).Major -eq 15 -and (Get-ExchangeBuildVersionInformation -AdminDisplayVersion $_.AdminDisplayVersion).Minor -eq 0 -and $_.IsClientAccessServer) }
+            $ExchangeServers = $ExchangeServers | Where-Object { -not ((Get-ExchangeBuildVersionInformation -AdminDisplayVersion $_.AdminDisplayVersion).BuildVersion.Major -eq 15 -and (Get-ExchangeBuildVersionInformation -AdminDisplayVersion $_.AdminDisplayVersion).BuildVersion.Minor -eq 0 -and $_.IsClientAccessServer) }
             Invoke-ValidateMitigation -ExchangeServers $ExchangeServers.Name -ipRangeAllowListRules $ipRangeAllowListRules -SiteVDirLocations $SiteVDirLocations
         }
 
@@ -311,7 +318,7 @@ begin {
                     $listToAdd.Add(([PSCustomObject]@{
                                 $vDirArray[0]     = $vDirArray[1]
                                 Value             = $entry.ExtendedProtection
-                                SupportedValue    = if ($entry.MitigationEnabled) { "None" } else { $entry.ExpectedExtendedConfiguration }
+                                SupportedValue    = if ($entry.MitigationSupported -and $entry.MitigationEnabled) { "None" } else { $entry.ExpectedExtendedConfiguration }
                                 ConfigSupported   = $entry.ProperlySecuredConfiguration
                                 RequireSSL        = "$($ssl.RequireSSL) $(if($ssl.Ssl128Bit) { "(128-bit)" })".Trim()
                                 ClientCertificate = $ssl.ClientCertificate
@@ -584,7 +591,7 @@ begin {
 
             if ($ConfigureMitigationSelected) {
                 # Apply rules
-                $ExchangeServers = $ExchangeServers | Where-Object { -not ((Get-ExchangeBuildVersionInformation -AdminDisplayVersion $_.AdminDisplayVersion).Major -eq 15 -and (Get-ExchangeBuildVersionInformation -AdminDisplayVersion $_.AdminDisplayVersion).Minor -eq 0 -and $_.IsClientAccessServer) }
+                $ExchangeServers = $ExchangeServers | Where-Object { -not ((Get-ExchangeBuildVersionInformation -AdminDisplayVersion $_.AdminDisplayVersion).BuildVersion.Major -eq 15 -and (Get-ExchangeBuildVersionInformation -AdminDisplayVersion $_.AdminDisplayVersion).BuildVersion.Minor -eq 0 -and $_.IsClientAccessServer) }
                 Invoke-ConfigureMitigation -ExchangeServers $ExchangeServers.Name -ipRangeAllowListRules $ipRangeAllowListRules -SiteVDirLocations $SiteVDirLocations
             }
         } elseif ($RollbackSelected) {
@@ -595,7 +602,7 @@ begin {
             }
 
             if ($RollbackRestrictType) {
-                $ExchangeServers = $ExchangeServers | Where-Object { -not ((Get-ExchangeBuildVersionInformation -AdminDisplayVersion $_.AdminDisplayVersion).Major -eq 15 -and (Get-ExchangeBuildVersionInformation -AdminDisplayVersion $_.AdminDisplayVersion).Minor -eq 0 -and $_.IsClientAccessServer) }
+                $ExchangeServers = $ExchangeServers | Where-Object { -not ((Get-ExchangeBuildVersionInformation -AdminDisplayVersion $_.AdminDisplayVersion).BuildVersion.Major -eq 15 -and (Get-ExchangeBuildVersionInformation -AdminDisplayVersion $_.AdminDisplayVersion).BuildVersion.Minor -eq 0 -and $_.IsClientAccessServer) }
                 Invoke-RollbackIPFiltering -ExchangeServers $ExchangeServers -SiteVDirLocations $SiteVDirLocations
             }
 

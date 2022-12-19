@@ -51,7 +51,7 @@ function Invoke-AnalyzerSecuritySettings {
     $tlsSettings = $osInformation.TLSSettings.Registry.TLS
     $misconfiguredClientServerSettings = ($tlsSettings.Values | Where-Object { $_.TLSMisconfigured -eq $true }).Count -ne 0
     $displayLinkToDocsPage = ($tlsSettings.Values | Where-Object { $_.TLSConfiguration -ne "Enabled" -and $_.TLSConfiguration -ne "Disabled" }).Count -ne 0
-    $lowerTlsVersionDisabled = ($tlsSettings.Values | Where-Object { $_.TLSVersionDisabled -eq $true -and $_.TLSVersion -ne "1.2" }).Count -ne 0
+    $lowerTlsVersionDisabled = ($tlsSettings.Values | Where-Object { $_.TLSVersionDisabled -eq $true -and ($_.TLSVersion -ne "1.2" -and $_.TLSVersion -ne "1.3") }).Count -ne 0
     $tls13NotDisabled = ($tlsSettings.Values | Where-Object { $_.TLSConfiguration -ne "Disabled" -and $_.TLSVersion -eq "1.3" }).Count -gt 0
 
     $sbValue = {
@@ -79,11 +79,15 @@ function Invoke-AnalyzerSecuritySettings {
         # Any TLS version is Misconfigured or Half Disabled is Red
         # Only TLS 1.2 being Disabled is Red
         # Currently TLS 1.3 being Enabled is Red
+        # TLS 1.0 or 1.1 being Enabled is Yellow as we recommend to disable this weak protocol versions
         if (($currentTlsVersion.TLSConfiguration -eq "Misconfigured" -or
                 $currentTlsVersion.TLSConfiguration -eq "Half Disabled") -or
                 ($tlsKey -eq "1.2" -and $currentTlsVersion.TLSConfiguration -eq "Disabled") -or
                 ($tlsKey -eq "1.3" -and $currentTlsVersion.TLSConfiguration -eq "Enabled")) {
             $displayWriteType = "Red"
+        } elseif ($currentTlsVersion.TLSConfiguration -eq "Enabled" -and
+            ($tlsKey -eq "1.1" -or $tlsKey -eq "1.0")) {
+            $displayWriteType = "Yellow"
         }
 
         $params = $baseParams + @{
@@ -232,6 +236,21 @@ function Invoke-AnalyzerSecuritySettings {
         Add-AnalyzedResultInformation @params
     }
 
+    if ($lowerTlsVersionDisabled -eq $false) {
+        $displayLinkToDocsPage = $true
+        $params = $baseParams + @{
+            Name = "TLS hardening recommendations"
+        }
+        Add-AnalyzedResultInformation @params
+
+        $params = $baseParams + @{
+            Details                = "Microsoft recommends customers proactively address weak TLS usage by removing TLS 1.0/1.1 dependencies in their environments and disabling TLS 1.0/1.1 at the operating system level where possible."
+            DisplayWriteType       = "Yellow"
+            DisplayCustomTabNumber = 2
+        }
+        Add-AnalyzedResultInformation @params
+    }
+
     if ($displayLinkToDocsPage) {
         $params = $baseParams + @{
             Details                = "More Information: https://aka.ms/HC-TLSConfigDocs"
@@ -250,7 +269,7 @@ function Invoke-AnalyzerSecuritySettings {
     Add-AnalyzedResultInformation @params
 
     if ($null -ne $osInformation.TLSSettings.TlsCipherSuite) {
-        $outputObjectDisplayValue = New-Object System.Collections.Generic.List[object]
+        $outputObjectDisplayValue = New-Object 'System.Collections.Generic.List[object]'
 
         foreach ($tlsCipher in $osInformation.TLSSettings.TlsCipherSuite) {
             $outputObjectDisplayValue.Add(([PSCustomObject]@{
@@ -274,14 +293,36 @@ function Invoke-AnalyzerSecuritySettings {
     }
 
     $params = $baseParams + @{
-        Name    = "LmCompatibilityLevel Settings"
-        Details = $osInformation.LmCompatibility.RegistryValue
+        Name    = "AllowInsecureRenegoClients Value"
+        Details = $osInformation.RegistryValues.AllowInsecureRenegoClients
     }
     Add-AnalyzedResultInformation @params
 
     $params = $baseParams + @{
+        Name    = "AllowInsecureRenegoServers Value"
+        Details = $osInformation.RegistryValues.AllowInsecureRenegoServers
+    }
+    Add-AnalyzedResultInformation @params
+
+    $params = $baseParams + @{
+        Name    = "LmCompatibilityLevel Settings"
+        Details = $osInformation.RegistryValues.LmCompatibilityLevel
+    }
+    Add-AnalyzedResultInformation @params
+
+    $description = [string]::Empty
+    switch ($osInformation.RegistryValues.LmCompatibilityLevel) {
+        0 { $description = "Clients use LM and NTLM authentication, but they never use NTLMv2 session security. Domain controllers accept LM, NTLM, and NTLMv2 authentication." }
+        1 { $description = "Clients use LM and NTLM authentication, and they use NTLMv2 session security if the server supports it. Domain controllers accept LM, NTLM, and NTLMv2 authentication." }
+        2 { $description = "Clients use only NTLM authentication, and they use NTLMv2 session security if the server supports it. Domain controller accepts LM, NTLM, and NTLMv2 authentication." }
+        3 { $description = "Clients use only NTLMv2 authentication, and they use NTLMv2 session security if the server supports it. Domain controllers accept LM, NTLM, and NTLMv2 authentication." }
+        4 { $description = "Clients use only NTLMv2 authentication, and they use NTLMv2 session security if the server supports it. Domain controller refuses LM authentication responses, but it accepts NTLM and NTLMv2." }
+        5 { $description = "Clients use only NTLMv2 authentication, and they use NTLMv2 session security if the server supports it. Domain controller refuses LM and NTLM authentication responses, but it accepts NTLMv2." }
+    }
+
+    $params = $baseParams + @{
         Name                   = "Description"
-        Details                = $osInformation.LmCompatibility.Description
+        Details                = $description
         DisplayCustomTabNumber = 2
         AddHtmlDetailRow       = $false
     }

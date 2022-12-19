@@ -69,6 +69,10 @@ param (
     [array]$ExperfwizLogmanName = @("Exchange_Perfwiz", "ExPerfwiz", "SimplePerf"),
     [Parameter(ParameterSetName = "LogAge")]
     [timespan]$LogAge = "3.00:00:00",
+    [Parameter(ParameterSetName = "LogPeriod")]
+    [datetime]$LogStartDate = (Get-Date).AddDays(-3),
+    [Parameter(ParameterSetName = "LogPeriod")]
+    [datetime]$LogEndDate = (Get-Date),
     [switch]$OutlookConnectivityIssues,
     [switch]$PerformanceIssues,
     [switch]$PerformanceMailflowIssues,
@@ -81,7 +85,17 @@ $BuildVersion = ""
 
 if ($PSBoundParameters["Verbose"]) { $Script:ScriptDebug = $true }
 
-if ($PSCmdlet.ParameterSetName -eq "Worth") { $Script:LogAge = New-TimeSpan -Days $DaysWorth -Hours $HoursWorth }
+if ($PSCmdlet.ParameterSetName -eq "Worth") {
+    $Script:LogAge = New-TimeSpan -Days $DaysWorth -Hours $HoursWorth
+    $Script:LogEndAge = New-TimeSpan -Days 0 -Hours 0
+}
+
+if ($PSCmdlet.ParameterSetName -eq "LogPeriod") {
+    $Script:LogAge = ((Get-Date) - $LogStartDate)
+    $Script:LogEndAge = ((Get-Date) - $LogEndDate)
+} else {
+    $Script:LogEndAge = New-TimeSpan -Days 0 -Hours 0
+}
 
 function Invoke-RemoteFunctions {
     param(
@@ -180,12 +194,17 @@ function Main {
         Enter-YesNoLoopAction -Question "Do you wish to continue? " -YesAction {} -NoAction { exit }
     }
 
+    if ( $PSCmdlet.ParameterSetName -eq "LogPeriod" -and ( $LogAge.CompareTo($LogEndAge) -ne 1 ) ) {
+        Write-Host "LogStartDate time should smaller than LogEndDate time." -ForegroundColor "Yellow"
+        exit
+    }
+
     if (-not (Confirm-Administrator)) {
         Write-Host "Hey! The script needs to be executed in elevated mode. Start the Exchange Management Shell as an Administrator." -ForegroundColor "Yellow"
         exit
     }
 
-    $Script:LocalExchangeShell = Confirm-ExchangeShell -Identity $env:COMPUTERNAME
+    $Script:LocalExchangeShell = Confirm-ExchangeShell
 
     if (!($Script:LocalExchangeShell.ShellLoaded)) {
         Write-Host "It appears that you are not on an Exchange 2010 or newer server. Sorry I am going to quit."
@@ -222,7 +241,7 @@ function Main {
         try {
             Invoke-Command -ComputerName $Script:ValidServers -ScriptBlock ${Function:Invoke-RemoteFunctions} -ArgumentList $argumentList -ErrorAction Stop
         } catch {
-            Write-Error "An error has occurred attempting to call Invoke-Command to do a remote collect all at once. Please notify ExToolsFeedback@microsoft.com of this issue. Stopping the script."
+            Write-Host "An error has occurred attempting to call Invoke-Command to do a remote collect all at once. Please notify ExToolsFeedback@microsoft.com of this issue. Stopping the script." -ForegroundColor "Red"
             Invoke-CatchActions
             exit
         }

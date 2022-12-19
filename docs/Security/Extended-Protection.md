@@ -348,11 +348,13 @@ If you want to enable Extended Protection in your environment manually without u
     5. ComplianceOutlookLogonToArchiveMapiHttpCtpProbe
     6. ComplianceOutlookLogonToArchiveRpcCtpProbe
 
-You will also notice that some Health Mailbox logins fail with event ID: 4625 and failure reason "_An Error occurred during Logon_" and status _0xC000035B_ which is related to the failed probes. [**Get-ServerHealth**](https://docs.microsoft.com/exchange/high-availability/managed-availability/health-sets?view=exchserver-2019#use-the-exchange-management-shell-to-view-a-list-of-monitors-and-their-current-health) command will also show RPC and Mapi monitors as Unhealthy.
+   You will also notice that some Health Mailbox logins fail with event ID: 4625 and failure reason "_An Error occurred during Logon_" and status _0xC000035B_ which is related to the failed probes. [**Get-ServerHealth**](https://docs.microsoft.com/exchange/high-availability/managed-availability/health-sets?view=exchserver-2019#use-the-exchange-management-shell-to-view-a-list-of-monitors-and-their-current-health) command will also show RPC and Mapi monitors as Unhealthy.
 
-**Impact of these failures**: Due to this probe failure, the Mapi and Rpc App pools will get restarted once. There should be no other impact.
+   **Impact of these failures**: Due to this probe failure, the Mapi and Rpc App pools will get restarted once. There should be no other impact.
 
-You can also turn off any of the above probes temporarily (till the fix is provided) by going through steps mentioned in [Configure managed availability overrides \| Microsoft Docs](https://docs.microsoft.com/exchange/high-availability/managed-availability/configure-overrides?view=exchserver-2019).
+   You can also turn off any of the above probes temporarily (till the fix is provided) by going through steps mentioned in [Configure managed availability overrides \| Microsoft Docs](https://docs.microsoft.com/exchange/high-availability/managed-availability/configure-overrides?view=exchserver-2019).
+
+   **Fixed:** This issue has been addressed with the [October 2022 (and later) Exchange Server Security Updates](https://techcommunity.microsoft.com/t5/exchange-team-blog/released-october-2022-exchange-server-security-updates/ba-p/3646263).
 
 ## Troubleshooting issues after enabling Extended Protection
 
@@ -397,7 +399,7 @@ If you have an environment containing Exchange Server 2016 CU22 or Exchange Serv
 Q: Is it required to install the August 2022 Security Update (SU) if it was already installed on the previous Cumulative Update (CU)?<br>
 A: Yes, it's required to install the August 2022 SU again if you update to a newer CU build (e.g., Exchange Server 2019 CU11 --> Exchange Server 2019 CU12).
 Please remember:
-If you plan to do the update immediately (means CU + SU installation) Extended Protection does not need to be switched off
+If you plan to do the update immediately (means CU + SU installation) Extended Protection does not need to be switched off.
 If you plan to stay on the CU without installing the SU immediately, you must disable Extended Protection (find the required steps above) as the CU without the SU being installed doesn't support Extended Protection and therefore, you'll experience client connectivity issues.
 
 Q: Is it safe to enable Windows Extended Protection on an environment that uses Active Directory Federation Services (ADFS) for OWA?<br>
